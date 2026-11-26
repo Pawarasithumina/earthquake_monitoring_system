@@ -1,7 +1,6 @@
-
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "nasa-space-weather-ingestion",
+  "name": "earthquake-monitoring-system",
   "main": "src/index.js",
   "compatibility_date": "2026-11-26",
   "workers_dev": true,
@@ -9,4 +8,3 @@
     "enabled": true
   }
 }
-
