@@ -23,5 +23,11 @@
       "binding": "RAW_DATA",
       "id": "165946d0893541aca1bfe4b2559c942f"
     }
-  ]
+  ],
+
+  "triggers": {
+    "crons": [
+      "0 */6 * * *"
+    ]
+  }
 }
