@@ -58,7 +58,10 @@ function validateFeature(feature, ingestionTime) {
 
   let magnitude = null;
 
-  if (properties.mag !== null && properties.mag !== undefined) {
+  if (
+    properties.mag !== null &&
+    properties.mag !== undefined
+  ) {
     magnitude = Number(properties.mag);
 
     if (!Number.isFinite(magnitude)) {
@@ -338,11 +341,15 @@ export default {
         project: "Earthquake Monitoring System",
         status: "running",
         data_source: "USGS Earthquake API",
-        storage: ["Cloudflare KV", "Cloudflare D1"],
+        storage: [
+          "Cloudflare KV",
+          "Cloudflare D1"
+        ],
         endpoints: [
           "/",
           "/health",
           "/api/stats",
+          "/api/warehouse-export",
           "/ingest"
         ]
       });
@@ -386,6 +393,106 @@ export default {
         return jsonResponse({
           status: "error",
           message: "Unable to read database statistics."
+        }, 500);
+      }
+    }
+
+    // Secure paginated export endpoint for BigQuery.
+    if (
+      url.pathname === "/api/warehouse-export"
+    ) {
+      if (request.method !== "GET") {
+        return jsonResponse({
+          status: "error",
+          message: "Use GET to retrieve warehouse records."
+        }, 405);
+      }
+
+      if (!env.WAREHOUSE_EXPORT_SECRET) {
+        return jsonResponse({
+          status: "error",
+          message: "Warehouse export is not configured."
+        }, 503);
+      }
+
+      const authorization =
+        request.headers.get("Authorization");
+
+      if (
+        authorization !==
+        `Bearer ${env.WAREHOUSE_EXPORT_SECRET}`
+      ) {
+        return jsonResponse({
+          status: "error",
+          message: "Unauthorized."
+        }, 401);
+      }
+
+      try {
+        const requestedLimit = Number(
+          url.searchParams.get("limit") || 500
+        );
+
+        const requestedOffset = Number(
+          url.searchParams.get("offset") || 0
+        );
+
+        if (
+          !Number.isInteger(requestedLimit) ||
+          requestedLimit < 1 ||
+          requestedLimit > 1000 ||
+          !Number.isInteger(requestedOffset) ||
+          requestedOffset < 0
+        ) {
+          return jsonResponse({
+            status: "error",
+            message: "Invalid pagination parameters."
+          }, 400);
+        }
+
+        const countResult = await env.DB.prepare(`
+          SELECT COUNT(*) AS total
+          FROM earthquakes
+        `).first();
+
+        const records = await env.DB.prepare(`
+          SELECT
+            event_id,
+            magnitude,
+            place,
+            event_time,
+            depth_km,
+            longitude,
+            latitude,
+            event_url,
+            ingestion_time
+          FROM earthquakes
+          ORDER BY event_time ASC, event_id ASC
+          LIMIT ? OFFSET ?
+        `).bind(
+          requestedLimit,
+          requestedOffset
+        ).all();
+
+        const total = Number(countResult?.total ?? 0);
+
+        return jsonResponse({
+          status: "success",
+          total_records: total,
+          limit: requestedLimit,
+          offset: requestedOffset,
+          returned_records: records.results.length,
+          has_more:
+            requestedOffset + records.results.length < total,
+          records: records.results
+        });
+
+      } catch (error) {
+        console.error("Warehouse export error:", error);
+
+        return jsonResponse({
+          status: "error",
+          message: "Unable to export warehouse records."
         }, 500);
       }
     }
