@@ -1,36 +1,46 @@
+# 🌍 Earthquake Monitoring System
 
-# Earthquake Monitoring System
+A cloud-based earthquake data engineering and monitoring system that automatically collects earthquake events from the **USGS Earthquake API**, validates and stores the data using Cloudflare services, and transfers structured records to Google BigQuery for analytical processing.
 
-A cloud-based earthquake data ingestion and monitoring system built using **Cloudflare Workers**, **Cloudflare Cron Triggers**, **Cloudflare D1**, and **Cloudflare KV**.
+The system demonstrates an end-to-end cloud data engineering pipeline involving API ingestion, basic data processing, NoSQL storage, relational storage, data warehousing, scheduled execution and cloud-based automation.
 
-The system collects earthquake event data from the public **USGS Earthquake API**, performs basic data validation and cleaning, and stores the collected information using both NoSQL and relational database technologies.
+## 🔗 Related Projects
 
-The project demonstrates a lightweight cloud data engineering pipeline that automates data ingestion and supports future earthquake data analysis.
+This repository is the backend data engineering component of the Earthquake Monitoring project.
+
+- **Interactive Dashboard:** [earthquake_monitoring_dashboard](https://github.com/Pawarasithumina/earthquake_monitoring_dashboard)
+- **Live Dashboard:** [Open Earthquake Monitoring Dashboard](https://earthquakemonitoringdashboard-lkomffwk24fzph9xdsjmji.streamlit.app/)
+
+The dashboard retrieves earthquake records from the protected read-only API provided by this repository.
 
 ---
 
-## Project Overview
+## 📌 Project Overview
 
-Earthquakes occur around the world every day. Public earthquake data provides valuable information about seismic activity, including earthquake magnitude, geographical location, depth, and occurrence time.
+Earthquakes occur around the world every day. Public earthquake data provides valuable information about seismic activity, including magnitude, geographical location, depth and occurrence time.
 
-This project aims to develop a cloud-based system that automatically collects earthquake information and stores it in structured and unstructured storage systems.
+This project implements an automated cloud-based system that collects earthquake information from the USGS Earthquake API and stores it using multiple cloud storage technologies.
 
-The ingestion process is executed entirely in the cloud using Cloudflare Workers. A scheduled Cloudflare Cron Trigger can automatically initiate data collection without requiring a continuously running local computer.
+The ingestion and processing operations execute within Cloudflare Workers rather than relying on a continuously running local computer.
+
+The collected records are stored in Cloudflare KV and Cloudflare D1. A GitHub Actions workflow subsequently transfers the structured records from D1 to Google BigQuery.
 
 ### Main Objectives
 
 - Collect earthquake event data from the USGS Earthquake API.
 - Automate data ingestion using Cloudflare Cron Triggers.
 - Perform basic data validation and cleaning.
-- Store original API responses in Cloudflare KV.
-- Store cleaned and structured earthquake records in Cloudflare D1.
+- Store original API records in Cloudflare KV.
+- Store cleaned and structured records in Cloudflare D1.
 - Prevent duplicate records using unique earthquake event IDs.
-- Monitor ingestion execution and identify errors.
-- Prepare the collected data for future analytical processing.
+- Transfer structured records to Google BigQuery.
+- Automate cloud-to-cloud data transfer using GitHub Actions.
+- Provide a protected read-only API for downstream applications.
+- Support earthquake data exploration through an interactive dashboard.
 
 ---
 
-## System Architecture
+## 🏗️ System Architecture
 
 ```mermaid
 flowchart TD
@@ -38,12 +48,12 @@ flowchart TD
     B["Cloudflare Cron Trigger"]
     C["Cloudflare Worker"]
     D["Data Extraction"]
-    E["Data Validation"]
-    F["Basic Data Cleaning"]
-    G["Cloudflare KV<br/>Raw JSON Records"]
-    H["Cloudflare D1<br/>Structured Records"]
-    I["BigQuery<br/>Planned Data Warehouse"]
-    J["SQL Analytics"]
+    E["Validation and Basic Cleaning"]
+    F["Cloudflare KV<br/>Raw GeoJSON Data"]
+    G["Cloudflare D1<br/>Structured Earthquake Records"]
+    H["GitHub Actions"]
+    I["Google BigQuery<br/>Analytical Warehouse"]
+    J["Streamlit Dashboard"]
     K["Monitoring and Logs"]
 
     B --> C
@@ -51,12 +61,11 @@ flowchart TD
     A --> D
     D --> E
     E --> F
-    E -->|Invalid Records| K
-    F --> G
-    F --> H
+    E --> G
     C --> K
-    H -.-> I
-    I -.-> J
+    G --> H
+    H --> I
+    G --> J
 ```
 
 ### Architecture Components
@@ -64,155 +73,174 @@ flowchart TD
 | Component | Technology | Responsibility |
 |---|---|---|
 | Data Source | USGS Earthquake API | Provides earthquake event data |
-| Scheduler | Cloudflare Cron Triggers | Schedules automatic ingestion |
-| Processing | Cloudflare Workers | Executes extraction, validation, and loading |
-| NoSQL Storage | Cloudflare KV | Stores original earthquake JSON records |
-| Relational Storage | Cloudflare D1 | Stores cleaned earthquake records |
-| Data Warehouse | Google BigQuery (planned) | Future analytical storage |
-| Monitoring | Cloudflare Observability | Helps monitor execution and errors |
+| Scheduler | Cloudflare Cron Triggers | Initiates scheduled ingestion |
+| Processing | Cloudflare Workers | Executes extraction, validation and loading |
+| NoSQL Storage | Cloudflare KV | Stores original JSON event data |
+| Relational Storage | Cloudflare D1 | Stores structured earthquake records |
+| Automation | GitHub Actions | Runs the D1-to-BigQuery transfer |
+| Data Warehouse | Google BigQuery | Stores data for analytical queries |
+| Authentication | Google Workload Identity Federation | Authenticates GitHub Actions with Google Cloud |
+| Monitoring | Cloudflare Observability | Supports execution monitoring |
+| Dashboard | Streamlit Community Cloud | Presents earthquake data visually |
 
 ---
 
-## Technologies Used
+## 🛠️ Technologies Used
 
-### Cloud Platform
+### Cloud Infrastructure
 - Cloudflare Workers
 - Cloudflare Cron Triggers
 - Cloudflare D1
 - Cloudflare KV
 - Cloudflare Observability
+- Google BigQuery
 
 ### Programming and Data Technologies
 - JavaScript
 - SQL
-- REST API
+- Python
+- REST APIs
 - JSON
+- GeoJSON
 
-### Data Source
-- [USGS Earthquake API](https://earthquake.usgs.gov/fdsnws/event/1/)
+### Automation and Authentication
+- GitHub Actions
+- Google Cloud Workload Identity Federation
+- Cloudflare Worker secrets
+- GitHub Actions secrets and variables
 
 ### Version Control
 - Git
 - GitHub
 
-### Planned Technology
-- Google BigQuery for analytical data warehousing.
-
 ---
 
-## Data Source
+## 🌐 Data Source
 
-The system uses the United States Geological Survey (USGS) Earthquake API.
+The system uses the official **United States Geological Survey (USGS) Earthquake API**.
 
-Official API documentation:
+Official documentation:
 
 https://earthquake.usgs.gov/fdsnws/event/1/
 
 The API provides earthquake event information in GeoJSON format.
 
+The ingestion process retrieves events from the previous 30 days during each run.
+
 ### Main Data Fields
 
 | Field | Description |
 |---|---|
-| Event ID | Unique earthquake event identifier |
-| Magnitude | Measured earthquake magnitude |
-| Place | Human-readable earthquake location |
-| Time | Date and time of the earthquake |
-| Depth | Earthquake depth in kilometres |
-| Longitude | Geographic longitude |
-| Latitude | Geographic latitude |
-| Event URL | Link to the original USGS event information |
-
-The system extracts the relevant fields and prepares them for storage.
+| event_id | Unique earthquake event identifier |
+| magnitude | Measured earthquake magnitude |
+| place | Human-readable earthquake location |
+| event_time | Date and time of the earthquake |
+| depth_km | Earthquake depth in kilometres |
+| longitude | Geographic longitude |
+| latitude | Geographic latitude |
+| event_url | Link to the original USGS event information |
+| ingestion_time | Time the record was processed by the ingestion system |
 
 ---
 
-## Data Ingestion Workflow
+## ⚙️ Data Ingestion Workflow
 
-The pipeline follows these main stages:
+### 1. Scheduled Execution
 
-### 1. Data Extraction
+A Cloudflare Cron Trigger automatically invokes the Worker every six hours.
+
+The configured cron expression is:
+
+```text
+0 */6 * * *
+```
+
+This schedules ingestion at six-hour intervals.
+
+### 2. Data Extraction
 
 The Cloudflare Worker sends an HTTP request to the USGS Earthquake API and retrieves earthquake event records.
 
-### 2. Data Validation
+The current implementation retrieves events from the previous 30 days.
 
-Each record is checked for essential information, including:
+### 3. Data Validation
 
-- A valid earthquake event ID.
-- A valid magnitude value.
-- A valid event timestamp.
+Each earthquake record is checked for required information, including:
+
+- Valid earthquake event ID.
+- Valid magnitude value.
+- Valid event timestamp.
 - Valid geographic coordinates.
 - Valid depth information.
 
-Records that do not satisfy the required validation rules can be excluded from structured storage and recorded for monitoring.
+Invalid records are excluded from structured storage.
 
-### 3. Basic Data Cleaning
+### 4. Basic Data Cleaning
 
-The system performs basic cleaning operations, such as:
+The system performs basic data preparation operations:
 
 - Selecting the required fields.
-- Handling missing or invalid values.
-- Converting timestamps into a consistent format.
-- Ensuring numeric fields use appropriate data types.
+- Converting numeric values into appropriate data types.
+- Normalising event timestamps.
+- Trimming unnecessary whitespace from location descriptions.
+- Excluding invalid records.
 
-### 4. Data Loading
+### 5. Data Loading
 
-Validated earthquake records are stored in two different storage systems.
+Validated records are stored in two different cloud storage systems.
 
 **Cloudflare KV**
 
-Stores the original JSON representation of earthquake events.
+Stores the original GeoJSON earthquake records in chunks.
 
 **Cloudflare D1**
 
-Stores cleaned and structured earthquake information in a relational table.
+Stores cleaned and structured earthquake records in a relational table.
 
-### 5. Duplicate Prevention
+### 6. Duplicate Prevention
 
-The USGS event ID is used as a unique identifier.
+Each earthquake event has a unique event ID.
 
-The system uses this identifier to prevent duplicate records when the same earthquake event is retrieved during multiple ingestion runs.
+The D1 database uses this identifier as the primary key. An upsert operation updates an existing record when the same event is retrieved again, rather than creating a duplicate.
 
-### 6. Monitoring
+### 7. BigQuery Data Transfer
 
-The ingestion process can record:
+GitHub Actions executes a separate workflow to transfer structured records from Cloudflare D1 to Google BigQuery.
 
-- Total records fetched.
-- Valid records.
-- Invalid records.
-- Successful storage operations.
-- Execution errors.
+The workflow:
+
+1. Authenticates with Google Cloud using Workload Identity Federation.
+2. Requests records from the protected Cloudflare export endpoint.
+3. Retrieves the records in paginated batches.
+4. Validates the exported record count.
+5. Loads the records into the BigQuery destination table.
+
+The current implementation uses a snapshot-style load with `WRITE_TRUNCATE`, replacing the destination table contents with the latest successful export.
+
+This transfer does not modify the original Cloudflare D1 records.
 
 ---
 
-## Cloud Storage Design
+## ☁️ Cloud Storage Design
 
-### Cloudflare KV – NoSQL Database
+### Cloudflare KV — NoSQL Storage
 
-Namespace:
-
-`EARTHQUAKE_RAW_DATA`
+**Namespace:** `EARTHQUAKE_RAW_DATA`
 
 Purpose:
 
 - Store original earthquake event JSON data.
 - Preserve the source representation of collected records.
-- Allow retrieval of raw event information.
+- Store raw records in manageable chunks.
+- Maintain a manifest containing ingestion metadata.
 
-### Cloudflare D1 – Relational Database
+### Cloudflare D1 — Relational Storage
 
-Database:
+**Database:** `earthquake-monitor-db`
 
-`earthquake-monitor-db`
+**Worker Binding:** `DB`
 
-Binding:
-
-`DB`
-
-Proposed table structure:
-
-**Table: earthquakes**
+**Table:** `earthquakes`
 
 | Column | Data Type | Description |
 |---|---|---|
@@ -224,87 +252,225 @@ Proposed table structure:
 | longitude | REAL | Geographic longitude |
 | latitude | REAL | Geographic latitude |
 | event_url | TEXT | Original USGS event URL |
-| ingestion_time | TEXT | Time the record was ingested |
+| ingestion_time | TEXT | Record ingestion timestamp |
+
+### Google BigQuery — Analytical Warehouse
+
+**Project ID:** `propane-cooler-487716-t6`
+
+**Dataset:** `earthquake_warehouse`
+
+**Table:** `earthquake_events`
+
+Full table identifier:
+
+```text
+propane-cooler-487716-t6.earthquake_warehouse.earthquake_events
+```
+
+BigQuery stores the structured earthquake records transferred from Cloudflare D1.
+
+It supports analytical SQL queries, including:
+
+- Total earthquake event counts.
+- Average and maximum magnitude.
+- Earliest and latest event timestamps.
+- Magnitude distributions.
+- Earthquake activity over time.
+- Geographical analysis.
 
 ---
 
-## Project Structure
+## 🔐 Security and Authentication
+
+The system uses separate authentication mechanisms for its cloud integrations.
+
+### Cloudflare Export API
+
+The `/api/warehouse-export` endpoint is protected using a bearer token.
+
+The Worker reads the secret from:
+
+```text
+WAREHOUSE_EXPORT_SECRET
+```
+
+The secret is not stored in the source code or committed to GitHub.
+
+### GitHub Actions and Google Cloud
+
+Google Cloud Workload Identity Federation is used to authenticate GitHub Actions.
+
+This avoids the need to create and store a long-lived Google service-account JSON key.
+
+The workflow uses GitHub Actions secrets and variables for the required authentication configuration.
+
+### Dashboard Authentication
+
+The Streamlit dashboard uses the same export API through a secret configured in Streamlit Community Cloud.
+
+The dashboard secret is named:
+
+```text
+CLOUDFLARE_EXPORT_SECRET
+```
+
+It must match the Cloudflare Worker `WAREHOUSE_EXPORT_SECRET`.
+
+Never commit authentication secrets to the repository.
+
+---
+
+## 🔌 Worker API Endpoints
+
+The deployed Cloudflare Worker provides the following routes:
+
+**Base URL:**
+
+```text
+https://earthquake-monitoring-system.pawarasithumina24.workers.dev
+```
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/` | GET | Returns Worker information and available routes |
+| `/health` | GET | Checks Worker health |
+| `/api/stats` | GET | Returns earthquake data statistics |
+| `/api/warehouse-export` | GET | Provides protected, paginated earthquake records |
+| `/ingest` | GET | Initiates manual ingestion |
+
+The warehouse export endpoint requires a valid bearer token.
+
+Example:
+
+```text
+/api/warehouse-export?limit=100&offset=0
+```
+
+The endpoint supports pagination through `limit` and `offset` parameters.
+
+---
+
+## 📁 Project Structure
 
 ```text
 earthquake_monitoring_system/
+│
+├── .github/
+│   └── workflows/
+│       └── bigquery-load.yml
 │
 ├── src/
 │   └── index.js
 │
 ├── wrangler.jsonc
-│
 ├── package.json
-│
 └── README.md
 ```
 
 ---
 
-## Cloud Deployment
+## 🚀 Cloud Deployment
 
-The application is designed to run using Cloudflare Workers.
+The project is designed to execute on Cloudflare Workers.
 
-### Deployment Configuration
+The `wrangler.jsonc` configuration defines the Worker entry point, database binding, KV namespace and scheduled trigger.
 
-The project uses `wrangler.jsonc` to define the Worker configuration and storage bindings.
+### Main Configuration
 
-The main configuration includes:
+| Setting | Value |
+|---|---|
+| Worker Name | earthquake-monitoring-system |
+| Entry Point | src/index.js |
+| D1 Binding | DB |
+| KV Binding | RAW_DATA |
+| Cron Expression | 0 */6 * * * |
 
-- Worker name: `earthquake-monitoring-system`
-- Entry point: `src/index.js`
-- D1 binding: `DB`
-- KV binding: `RAW_DATA`
+The repository is connected to Cloudflare for deployment through the configured Git integration.
 
-### Deployment
-
-The Worker can be deployed using Wrangler:
+The Worker can also be deployed using Wrangler in an authorised development environment.
 
 ```bash
 npx wrangler deploy
 ```
 
-The project is also connected to GitHub for automated deployment when supported repository changes are pushed.
+Production ingestion and processing are executed in the cloud.
 
 ---
 
-## Free-Tier and Cost Management
+## 📊 Data Validation and Monitoring
 
-This project is designed around free-tier cloud services wherever possible.
+The ingestion process tracks important execution statistics:
 
-The selected services include:
+- Total records fetched.
+- Valid records.
+- Invalid records.
+- Records processed by D1.
+- Number of KV chunks created.
+- Execution status.
+- Errors encountered during ingestion.
 
-- Cloudflare Workers for cloud-side execution.
-- Cloudflare Cron Triggers for scheduled ingestion.
-- Cloudflare D1 for relational storage.
-- Cloudflare KV for NoSQL storage.
+Cloudflare Observability supports monitoring Worker execution.
 
-Usage limits and quotas must be monitored throughout development to avoid unexpected charges.
+The `/health` endpoint can be used to check whether the Worker is responding.
+
+The `/api/stats` endpoint provides an overview of stored earthquake records.
+
+---
+
+## 💰 Free-Tier and Cost Management
+
+The project was designed to use free-tier cloud services and available sandbox resources wherever possible.
+
+Selected services include:
+
+- Cloudflare Workers.
+- Cloudflare D1.
+- Cloudflare KV.
+- Cloudflare Cron Triggers.
+- GitHub Actions.
+- Google BigQuery Sandbox.
+
+Usage limits, quotas and platform policies must be monitored throughout development.
 
 The project does not require a continuously running virtual machine or local data-processing server.
 
----
-
-## Future Enhancements
-
-The following improvements are planned for future development:
-
-- Integrate Google BigQuery as an analytical data warehouse, subject to free-tier availability.
-- Develop SQL-based earthquake analytics.
-- Analyse earthquake frequency and magnitude distributions.
-- Explore geographical earthquake patterns.
-- Improve ingestion monitoring and error reporting.
-- Develop a dashboard for visualising earthquake activity.
-
-These are planned enhancements and are not considered completed implementation features.
+Actual usage and free-tier eligibility depend on the applicable provider limits and account configuration.
 
 ---
 
-## Academic Project
+## 📈 Project Results
+
+The ingestion pipeline and warehouse transfer were successfully tested.
+
+One verified BigQuery query returned the following results:
+
+| Metric | Verified Result |
+|---|---:|
+| Total records | 9,405 |
+| Average magnitude | 1.7932 |
+| Maximum magnitude | 6.8 |
+| Earliest event | 2026-10-27 |
+| Latest event | 2026-11-26 |
+
+These values represent a verification snapshot from 27 November 2026. The dataset changes as new earthquake events are ingested.
+
+---
+
+## 🔮 Future Improvements
+
+Potential improvements include:
+
+- More advanced ingestion monitoring and alerting.
+- Improved failure recovery and retry handling.
+- Additional SQL-based earthquake analytics.
+- Historical earthquake trend analysis.
+- Further optimisation of data transfer.
+- Additional dashboard visualisations and analytical features.
+
+---
+
+## 🎓 Academic Project
 
 **Project Title:** Earthquake Monitoring System
 
@@ -318,15 +484,19 @@ These are planned enhancements and are not considered completed implementation f
 
 ---
 
-## Data Source and References
+## 📚 References
 
-- [USGS Earthquake API Documentation](https://earthquake.usgs.gov/fdsnws/event/1/)
+- [USGS Earthquake API](https://earthquake.usgs.gov/fdsnws/event/1/)
 - [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
 - [Cloudflare D1 Documentation](https://developers.cloudflare.com/d1/)
 - [Cloudflare KV Documentation](https://developers.cloudflare.com/kv/)
 - [Cloudflare Cron Triggers Documentation](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
+- [Google BigQuery Documentation](https://cloud.google.com/bigquery/docs)
+- [Google Cloud Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
 
 ---
 
-**Earthquake Monitoring System**  
-*A cloud-based approach to automated earthquake data ingestion and storage.*
+**Earthquake Monitoring System**
+
+*A cloud-based approach to automated earthquake data ingestion, storage and analytical data warehousing.*
