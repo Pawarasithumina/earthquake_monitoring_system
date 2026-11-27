@@ -1,0 +1,186 @@
+
+name: Cloudflare D1 to BigQuery
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: earthquake-bigquery-load
+  cancel-in-progress: false
+
+jobs:
+  transfer:
+    name: Transfer earthquake records
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests google-cloud-bigquery
+
+      - name: Transfer D1 records to BigQuery
+        env:
+          CLOUDFLARE_EXPORT_SECRET: ${{ secrets.CLOUDFLARE_EXPORT_SECRET }}
+          GCP_PROJECT_ID: propane-cooler-487716-t6
+        run: |
+          python - <<'PY'
+          import os
+          import requests
+
+          from google.cloud import bigquery
+
+          WORKER_URL = (
+              "https://earthquake-monitoring-system."
+              "pawarasithumina24.workers.dev"
+              "/api/warehouse-export"
+          )
+
+          PAGE_SIZE = 1000
+
+          headers = {
+              "Authorization": (
+                  "Bearer "
+                  + os.environ["CLOUDFLARE_EXPORT_SECRET"]
+              )
+          }
+
+          records = []
+          offset = 0
+          expected_total = None
+
+          print("Starting Cloudflare D1 export...")
+
+          while True:
+              response = requests.get(
+                  WORKER_URL,
+                  headers=headers,
+                  params={
+                      "limit": PAGE_SIZE,
+                      "offset": offset
+                  },
+                  timeout=60
+              )
+
+              response.raise_for_status()
+              payload = response.json()
+
+              if payload.get("status") != "success":
+                  raise RuntimeError(
+                      "Cloudflare export failed: "
+                      + str(payload)
+                  )
+
+              total = int(payload["total_records"])
+
+              if expected_total is None:
+                  expected_total = total
+              elif total != expected_total:
+                  raise RuntimeError(
+                      "D1 record count changed during export."
+                  )
+
+              batch = payload.get("records", [])
+
+              if len(batch) != int(
+                  payload["returned_records"]
+              ):
+                  raise RuntimeError(
+                      "Returned record count does not match."
+                  )
+
+              if not batch and offset < expected_total:
+                  raise RuntimeError(
+                      "Export stopped before all records were retrieved."
+                  )
+
+              records.extend(batch)
+              offset += len(batch)
+
+              print(
+                  f"Retrieved {offset} of {expected_total} records."
+              )
+
+              if not payload["has_more"]:
+                  break
+
+          if len(records) != expected_total:
+              raise RuntimeError(
+                  f"Expected {expected_total} records, "
+                  f"but retrieved {len(records)}."
+              )
+
+          if not records:
+              raise RuntimeError(
+                  "No records received. BigQuery table was not changed."
+              )
+
+          print("Cloudflare export completed.")
+          print(f"Total records retrieved: {len(records)}")
+
+          project_id = os.environ["GCP_PROJECT_ID"]
+
+          table_id = (
+              f"{project_id}."
+              "earthquake_warehouse."
+              "earthquake_events"
+          )
+
+          client = bigquery.Client(
+              project=project_id
+          )
+
+          schema = [
+              bigquery.SchemaField(
+                  "event_id", "STRING", mode="REQUIRED"
+              ),
+              bigquery.SchemaField("magnitude", "FLOAT"),
+              bigquery.SchemaField("place", "STRING"),
+              bigquery.SchemaField("event_time", "TIMESTAMP"),
+              bigquery.SchemaField("depth_km", "FLOAT"),
+              bigquery.SchemaField("longitude", "FLOAT"),
+              bigquery.SchemaField("latitude", "FLOAT"),
+              bigquery.SchemaField("event_url", "STRING"),
+              bigquery.SchemaField("ingestion_time", "TIMESTAMP"),
+          ]
+
+          job_config = bigquery.LoadJobConfig(
+              schema=schema,
+              write_disposition=(
+                  bigquery.WriteDisposition.WRITE_TRUNCATE
+              )
+          )
+
+          print("Starting BigQuery batch load...")
+
+          job = client.load_table_from_json(
+              records,
+              table_id,
+              job_config=job_config
+          )
+
+          job.result()
+
+          print("BigQuery batch load completed successfully.")
+          print(f"Destination: {table_id}")
+          print(f"Rows loaded: {job.output_rows}")
+          PY
